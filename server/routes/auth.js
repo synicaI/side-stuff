@@ -14,6 +14,7 @@ router.get('/', (req, res) => {
         if (user.banned) return res.status(403).send("Banned");
         if (Date.now() > user.expires) return res.status(403).send("Expired");
 
+        // Bind HWID if not already
         if (!user.hwid) {
             db.run("UPDATE users SET hwid = ? WHERE key = ?", [hwid, key]);
         } else if (user.hwid !== hwid) {
