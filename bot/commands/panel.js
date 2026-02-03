@@ -1,5 +1,4 @@
 const { EmbedBuilder, ButtonBuilder, ActionRowBuilder } = require('discord.js');
-const db = require('../server/db'); // optional: import db if same machine/server
 
 module.exports = {
     name: 'panel',
