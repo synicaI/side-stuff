@@ -2,8 +2,14 @@ const express = require('express');
 const app = express();
 const authRoute = require('./routes/auth');
 
+// ===== Import bot so it starts on deployment =====
+require('../bot/bot.js');
+
 const PORT = process.env.PORT || 8080;
 
+// Routes
 app.use('/auth', authRoute);
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+});
