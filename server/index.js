@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 const authRoute = require('./routes/auth');
 
-// ===== Import bot so it starts on deployment =====
+// ===== Start bot automatically =====
 require('../bot/bot.js');
 
 const PORT = process.env.PORT || 8080;
