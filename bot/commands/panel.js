@@ -1,53 +1,103 @@
-const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ComponentType } = require('discord.js');
-const db = require('../../server/db'); // import database
+const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle, InteractionType } = require('discord.js');
+const db = require('../../server/db'); // your SQLite database
 
 module.exports = {
     name: 'panel',
-    description: 'Manage keys',
+    description: 'User authentication panel',
     execute: async (interaction) => {
-        // Create embed
+
+        // Embed
         const embed = new EmbedBuilder()
             .setTitle("Auth Panel")
-            .setDescription("Generate or revoke keys")
+            .setDescription("Authenticate your Roblox key or get your script")
             .setColor(0x2b2d31);
 
-        // Create buttons
+        // Buttons
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-                .setCustomId("gen_key")
-                .setLabel("Generate Key")
+                .setCustomId("auth_key")
+                .setLabel("Authenticate Key")
                 .setStyle(1),
             new ButtonBuilder()
-                .setCustomId("revoke_key")
-                .setLabel("Revoke Key")
-                .setStyle(4)
+                .setCustomId("get_script")
+                .setLabel("Get Script")
+                .setStyle(2)
         );
 
         // Send panel
         const msg = await interaction.reply({ embeds: [embed], components: [row], ephemeral: true, fetchReply: true });
 
-        // Create a collector for button clicks
+        // Collector for buttons
         const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 0 });
 
         collector.on('collect', async (buttonInteraction) => {
-            if (buttonInteraction.customId === "gen_key") {
-                // Generate a random 16-char key
-                const key = Math.random().toString(36).substring(2, 18).toUpperCase();
 
-                // Insert into database with expiry 7 days from now
-                const expires = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
-                db.run("INSERT INTO users (key, expires) VALUES (?, ?)", [key, expires], (err) => {
-                    if (err) {
-                        buttonInteraction.reply({ content: "❌ Failed to generate key", ephemeral: true });
-                    } else {
-                        buttonInteraction.reply({ content: `✅ Key generated: \`${key}\` (expires in 7 days)`, ephemeral: true });
-                    }
-                });
+            // ===== AUTHENTICATE KEY =====
+            if (buttonInteraction.customId === "auth_key") {
 
-            } else if (buttonInteraction.customId === "revoke_key") {
-                // Ask user for key to revoke
-                buttonInteraction.reply({ content: "❌ Revoke function not fully interactive in buttons yet. Use /revoke <key> command or add modal.", ephemeral: true });
+                // Modal form
+                const modal = new ModalBuilder()
+                    .setCustomId("modal_auth")
+                    .setTitle("Authenticate Roblox Key");
+
+                const keyInput = new TextInputBuilder()
+                    .setCustomId("user_key")
+                    .setLabel("Enter your key")
+                    .setStyle(TextInputStyle.Short)
+                    .setPlaceholder("XXXX-XXXX-XXXX")
+                    .setRequired(true);
+
+                const rowModal = new ActionRowBuilder().addComponents(keyInput);
+                modal.addComponents(rowModal);
+
+                await buttonInteraction.showModal(modal);
+
             }
+
+            // ===== GET SCRIPT =====
+            else if (buttonInteraction.customId === "get_script") {
+                // Give them script text
+                const script = `
+print("ok")
+-- Roblox authentication example
+local HttpService = game:GetService("HttpService")
+local KEY = "YOUR_KEY"
+local SECRET = "YOUR_SECRET"
+-- connect to your backend
+                `;
+                await buttonInteraction.reply({ content: "```lua\n" + script + "\n```", ephemeral: true });
+            }
+
         });
+
+        // ===== MODAL SUBMISSION =====
+        interaction.client.on('interactionCreate', async modalInteraction => {
+            if (modalInteraction.type !== InteractionType.ModalSubmit) return;
+            if (modalInteraction.customId !== "modal_auth") return;
+
+            const key = modalInteraction.fields.getTextInputValue("user_key");
+
+            // Check DB
+            db.get("SELECT * FROM users WHERE key = ?", [key], async (err, user) => {
+                if (err || !user) {
+                    return modalInteraction.reply({ content: "❌ Invalid key", ephemeral: true });
+                }
+                if (user.banned) {
+                    return modalInteraction.reply({ content: "❌ This key is banned", ephemeral: true });
+                }
+                if (Date.now() > user.expires) {
+                    return modalInteraction.reply({ content: "❌ Key expired", ephemeral: true });
+                }
+
+                // Assign role
+                const member = await modalInteraction.guild.members.fetch(modalInteraction.user.id);
+                const role = modalInteraction.guild.roles.cache.get("1468263997014020240");
+                if (!role) return modalInteraction.reply({ content: "❌ Role not found", ephemeral: true });
+                await member.roles.add(role);
+
+                modalInteraction.reply({ content: `✅ Key authenticated! You now have access.`, ephemeral: true });
+            });
+        });
+
     }
 };
